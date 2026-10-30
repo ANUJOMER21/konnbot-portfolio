@@ -57,6 +57,13 @@ img{display:block}
 .badge{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--accent);color:var(--accentInk);font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center}
 .pills{display:flex;gap:8px;padding:0 16px 10px;overflow-x:auto;scrollbar-width:none}
 .pills::-webkit-scrollbar{display:none}
+.cats{display:flex;gap:10px;margin:16px -16px 0;padding:0 16px 2px;overflow-x:auto;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cat{flex:none;height:42px;padding:0 16px;border-radius:999px;border:1.5px solid var(--border);background:#fff;display:flex;align-items:center;gap:9px;font-weight:600;font-size:14px;white-space:nowrap}
+.cat i{width:9px;height:9px;border-radius:3px;display:block}
+.cat b{font-weight:600;font-size:13px;color:var(--muted)}
+.cat.on{background:var(--dark);border-color:var(--dark);color:#fff}
+.cat.on b{color:var(--accent)}
 .pill{flex:none;height:38px;padding:0 16px;border-radius:999px;border:1px solid var(--border);background:#fff;display:flex;align-items:center;gap:8px;font-weight:500;font-size:13.5px;white-space:nowrap;max-width:200px}
 .pill span{overflow:hidden;text-overflow:ellipsis}
 .pill.on{background:var(--chip);border-color:var(--accent);color:var(--chipInk);font-weight:600}
@@ -377,7 +384,7 @@ const DIMS = [
   {k:'status',label:'Status',short:'Status',get:p=>ST[p.stage].l},
   {k:'beds',label:'Bedrooms (per unit)',short:'Bedrooms',get:p=>String(Math.min(5,p.unitBeds))},
 ];
-const PILL_ORDER = ['cat','city','type','floors','area','beds','status'];
+const PILL_ORDER = ['city','type','floors','area','beds','status'];
 const BEDS = [{v:'2',l:'2+ bed'},{v:'3',l:'3+ bed'},{v:'4',l:'4+ bed'},{v:'5',l:'5+ bed'}];
 const SORTS = [{v:'new',l:'Newest first'},{v:'old',l:'Oldest first'},{v:'big',l:'Largest built-up'},{v:'small',l:'Smallest built-up'},{v:'tall',l:'Most floors'},{v:'no',l:'Project no.'}];
 const EMPTY = () => ({cat:[],city:[],type:[],floors:[],area:[],status:[],beds:[]});
@@ -470,8 +477,9 @@ function projectFacts(p) {
 const builtUpLabel = b => b >= 100000 ? (b/100000).toFixed(1).replace(/\.0$/,'') + ' L' : fmt(b);
 
 /* ---------- state ---------- */
-const KEY = 'kb2.web.state';
-const S = {q:'', f:EMPTY(), sort:'new', layout:'list', results:[]};
+const KEY = 'kb2.web.state2';
+const CAT_C = {Residential:'#16A34A',Commercial:'#8B6FC0',Hospitality:'#D98A00','Service Building':'#2563EB'};
+const S = {q:'', f:EMPTY(), sort:'no', layout:'list', results:[]};
 try {
   const s = JSON.parse(localStorage.getItem(KEY) || '{}');
   if (s.f) S.f = {...EMPTY(), ...s.f};
@@ -522,7 +530,7 @@ function buildHome() {
   root.innerHTML = `
   <div id="home">
     <div class="hdr">
-      <div class="topRow">${brand(false, 36)}<div class="topActs"><button class="present soft" data-act="pdfAll" aria-label="Share portfolio PDF">${ic('share',16)}PDF</button><button class="present" data-act="presentAll" aria-label="Present portfolio">${ic('play',16,'#1A1200')}Present</button></div></div>
+      <div class="topRow">${brand(false, 36)}<div class="topActs"><button class="present" data-act="presentAll" aria-label="Present portfolio">${ic('play',16,'#1A1200')}Present</button></div></div>
       <div class="searchRow">
         <div class="search">${ic('search',19,'#8C93A3')}<input id="q" type="search" placeholder="Search name, city, locality, P-no." autocomplete="off" autocorrect="off" spellcheck="false"><button class="x hide" id="qx" data-act="clearQ" aria-label="Clear search">${ic('close',12,'#fff',2.6)}</button></div>
         <button class="filterBtn" id="filterBtn" data-act="openSheet" aria-label="All filters"></button>
@@ -566,12 +574,17 @@ function updateList() {
   const bua = r.reduce((a,p) => a + p.bua, 0);
   const cities = new Set(r.map(p => p.city)).size;
   const cur = SORTS.find(x => x.v === S.sort);
+  const cc = c => PROJECTS.filter(p => match(p, S.f, S.q, 'cat') && (!c || p.cat === c)).length;
+  const sel = S.f.cat.length === 1 ? S.f.cat[0] : null;
+  const catChips = [[null,'All','#FFC000'], ...CATS.map(c => [c,c,CAT_C[c]])].map(([c,l,col]) =>
+    `<button class="cat${(c ? sel === c : !S.f.cat.length) ? ' on' : ''}" data-act="cat" data-v="${c || ''}"><i style="background:${col}"></i><span>${esc(l)}</span><b>${cc(c)}</b></button>`).join('');
   $('#homeBody').innerHTML = `
   <div class="pad">
     <div class="titleRow">
       <div style="flex:1;min-width:0"><h1 class="h1">Project Portfolio</h1><div class="summary">${r.length} of ${PROJECTS.length} projects · ${cities} ${cities === 1 ? 'city' : 'cities'}</div></div>
       <div class="toggle">${[['list','List view'],['grid','Grid view']].map(([k,lb]) => `<button data-act="layout" data-v="${k}" class="${S.layout === k ? 'on' : ''}" aria-label="${lb}">${ic(k,17)}</button>`).join('')}</div>
     </div>
+    <div class="cats">${catChips}</div>
     <div style="margin-top:14px">${strip([{v:r.length,l:'Projects'},{v:done,l:'Completed'},{v:r.length-done,l:'Ongoing'},{v:builtUpLabel(bua),l:'Sq ft built'}])}</div>
     <div class="listHead"><div class="count">${r.length} projects</div><button class="sort" data-act="sort"><span>${cur.l}</span>${ic('down',14)}</button></div>
     ${r.length ? (S.layout === 'list' ? r.map(card).join('') : `<div class="grid2">${r.map(gcard).join('')}</div>`)
@@ -1215,6 +1228,7 @@ const A = {
   presPdf: () => pres.kind === 'project' ? sharePdf(pres.p) : sharePortfolioPdf(pres.list),
   presentOne: d => presentProject(BY_ID.get(+d.id)),
   clearQ: () => { S.q = ''; $('#q').value = ''; $('#qx').classList.add('hide'); compute(); refreshFilterUI(); },
+  cat: d => { S.f.cat = d.v ? [d.v] : []; persist(); compute(); refreshFilterUI(); },
   layout: d => { S.layout = d.v; persist(); updateList(); },
   sort: (d, el) => openSort(el),
   closeMenu: closeMenu,
